@@ -1,98 +1,158 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { useMacroStore } from '@/store/macros';
+import { useLogStore } from '@/store/logs';
+import { macroEngine } from '@/engine/MacroEngine';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function MacrosScreen() {
+  const { macros, loadMacros, toggleMacro, deleteMacro } = useMacroStore();
+  const colorScheme = useColorScheme();
+  const [permissionGranted, setPermissionGranted] = useState(false);
+  const colors = Colors[colorScheme ?? 'light'];
 
-export default function HomeScreen() {
+  useEffect(() => {
+    loadMacros();
+    macroEngine.initialize();
+    checkPermission();
+
+    return () => macroEngine.cleanup();
+  }, []);
+
+  const checkPermission = async () => {
+    const granted = await macroEngine.checkNotificationPermission();
+    setPermissionGranted(granted);
+  };
+
+  const requestPermission = () => {
+    macroEngine.requestNotificationPermission();
+    setTimeout(checkPermission, 1000);
+  };
+
+  const handleToggle = async (id: string) => {
+    if (!permissionGranted) {
+      Alert.alert(
+        'Permission Required',
+        'Please grant Notification Access permission first.',
+        [{ text: 'OK' }, { text: 'Grant', onPress: requestPermission }]
+      );
+      return;
+    }
+    await toggleMacro(id);
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert('Delete Macro', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deleteMacro(id) },
+    ]);
+  };
+
+  const renderMacro = ({ item }: { item: any }) => (
+    <TouchableOpacity
+      style={[styles.macroCard, { backgroundColor: colors.card }]}
+      onPress={() => router.push(`/macro/${item.id}`)}>
+      <View style={styles.macroInfo}>
+        <Text style={[styles.macroName, { color: colors.text }]}>{item.name}</Text>
+        <Text style={[styles.macroTriggers, { color: colors.textSecondary }]}>
+          {item.triggers.length} trigger(s) → {item.actions.length} action(s)
+        </Text>
+      </View>
+      <View style={styles.macroActions}>
+        <TouchableOpacity
+          style={[styles.toggleBtn, { backgroundColor: item.enabled ? '#4CAF50' : '#ccc' }]}
+          onPress={() => handleToggle(item.id)}>
+          <Text style={styles.toggleText}>{item.enabled ? 'ON' : 'OFF'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleDelete(item.id)} style={styles.deleteBtn}>
+          <IconSymbol size={20} name="trash" color={colors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {!permissionGranted && (
+        <TouchableOpacity
+          style={[styles.permissionBanner, { backgroundColor: '#FFF3E0' }]}
+          onPress={requestPermission}>
+          <Text style={styles.permissionText}>
+            ⚠️ Tap to grant Notification Access permission
+          </Text>
+        </TouchableOpacity>
+      )}
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <FlatList
+        data={macros}
+        keyExtractor={(item) => item.id}
+        renderItem={renderMacro}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <IconSymbol size={64} name="list.bullet" color={colors.textSecondary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              No macros yet
+            </Text>
+            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+              Tap + to create your first automation
+            </Text>
+          </View>
+        }
+      />
+
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.tint }]}
+        onPress={() => router.push('/macro/create')}>
+        <IconSymbol size={28} name="plus" color="#fff" />
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: { flex: 1 },
+  permissionBanner: {
+    padding: 16,
+    margin: 16,
+    borderRadius: 8,
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  permissionText: { fontSize: 14, fontWeight: '600', color: '#E65100' },
+  macroCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 4,
+    borderRadius: 12,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  macroInfo: { flex: 1 },
+  macroName: { fontSize: 16, fontWeight: '600' },
+  macroTriggers: { fontSize: 12, marginTop: 4 },
+  macroActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  toggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  toggleText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  deleteBtn: { padding: 8 },
+  fab: {
     position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
   },
+  empty: { alignItems: 'center', marginTop: 80 },
+  emptyText: { fontSize: 18, fontWeight: '600', marginTop: 16 },
+  emptySubtext: { fontSize: 14, marginTop: 8 },
 });

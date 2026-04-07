@@ -16,7 +16,14 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        <Stack.Screen
+          name="macro/create"
+          options={{ presentation: 'modal', title: 'Create Macro' }}
+        />
+        <Stack.Screen
+          name="macro/[id]"
+          options={{ title: 'Macro Detail' }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
