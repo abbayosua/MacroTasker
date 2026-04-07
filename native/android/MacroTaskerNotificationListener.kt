@@ -1,6 +1,7 @@
 package com.anonymous.macrotasker
 
 import android.app.Notification
+import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.os.Bundle
