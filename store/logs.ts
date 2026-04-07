@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { LogEntry } from '@/types';
+import * as storage from '@/services/storage';
 
 interface LogState {
   logs: LogEntry[];
@@ -12,36 +13,15 @@ interface LogState {
   clearMacroLogs: (macroId: string) => Promise<void>;
 }
 
-const STORAGE_KEY = '@macrotasker_logs';
-
-async function loadLogsFromStorage(): Promise<LogEntry[]> {
-  try {
-    const AsyncStorage = await import('@react-native-async-storage/async-storage');
-    const stored = await AsyncStorage.default.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveLogsToStorage(logs: LogEntry[]): Promise<void> {
-  try {
-    const AsyncStorage = await import('@react-native-async-storage/async-storage');
-    await AsyncStorage.default.setItem(STORAGE_KEY, JSON.stringify(logs));
-  } catch {
-    // Silent fail
-  }
-}
-
 export const useLogStore = create<LogState>((set, get) => ({
   logs: [],
   loading: false,
 
   addLog: async (log) => {
     const { logs } = get();
-    const newLogs = [log, ...logs].slice(0, 500); // Keep last 500
+    const newLogs = [log, ...logs].slice(0, 500);
     set({ logs: newLogs });
-    await saveLogsToStorage(newLogs);
+    await storage.addLog(log);
   },
 
   getLogsByMacro: (macroId) => {
@@ -50,14 +30,13 @@ export const useLogStore = create<LogState>((set, get) => ({
 
   clearLogs: async () => {
     set({ logs: [] });
-    const AsyncStorage = await import('@react-native-async-storage/async-storage');
-    await AsyncStorage.default.removeItem(STORAGE_KEY);
+    await storage.clearLogs();
   },
 
   clearMacroLogs: async (macroId) => {
     const { logs } = get();
     const newLogs = logs.filter((l) => l.macroId !== macroId);
     set({ logs: newLogs });
-    await saveLogsToStorage(newLogs);
+    await storage.clearMacroLogs(macroId);
   },
 }));

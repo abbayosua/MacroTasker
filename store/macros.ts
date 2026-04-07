@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Macro } from '@/types';
+import * as storage from '@/services/storage';
 
 interface MacroState {
   macros: Macro[];
@@ -16,29 +17,6 @@ interface MacroState {
   getEnabledMacros: () => Macro[];
 }
 
-// Storage key
-const STORAGE_KEY = '@macrotasker_macros';
-
-// Helper for AsyncStorage
-async function loadMacrosFromStorage(): Promise<Macro[]> {
-  try {
-    const AsyncStorage = await import('@react-native-async-storage/async-storage');
-    const stored = await AsyncStorage.default.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveMacrosToStorage(macros: Macro[]): Promise<void> {
-  try {
-    const AsyncStorage = await import('@react-native-async-storage/async-storage');
-    await AsyncStorage.default.setItem(STORAGE_KEY, JSON.stringify(macros));
-  } catch {
-    // Silent fail for now
-  }
-}
-
 export const useMacroStore = create<MacroState>((set, get) => ({
   macros: [],
   loading: false,
@@ -47,7 +25,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
   loadMacros: async () => {
     set({ loading: true, error: null });
     try {
-      const macros = await loadMacrosFromStorage();
+      const macros = await storage.loadMacros();
       set({ macros, loading: false });
     } catch (e: any) {
       set({ error: e.message, loading: false });
@@ -58,7 +36,7 @@ export const useMacroStore = create<MacroState>((set, get) => ({
     const { macros } = get();
     const newMacros = [...macros, macro];
     set({ macros: newMacros });
-    await saveMacrosToStorage(newMacros);
+    await storage.saveMacro(macro);
   },
 
   updateMacro: async (id, updates) => {
@@ -66,15 +44,16 @@ export const useMacroStore = create<MacroState>((set, get) => ({
     const newMacros = macros.map((m) =>
       m.id === id ? { ...m, ...updates, updatedAt: Date.now() } : m
     );
+    const updated = newMacros.find((m) => m.id === id)!;
     set({ macros: newMacros });
-    await saveMacrosToStorage(newMacros);
+    await storage.saveMacro(updated);
   },
 
   deleteMacro: async (id) => {
     const { macros } = get();
     const newMacros = macros.filter((m) => m.id !== id);
     set({ macros: newMacros });
-    await saveMacrosToStorage(newMacros);
+    await storage.deleteMacro(id);
   },
 
   toggleMacro: async (id) => {
@@ -82,8 +61,9 @@ export const useMacroStore = create<MacroState>((set, get) => ({
     const newMacros = macros.map((m) =>
       m.id === id ? { ...m, enabled: !m.enabled, updatedAt: Date.now() } : m
     );
+    const updated = newMacros.find((m) => m.id === id)!;
     set({ macros: newMacros });
-    await saveMacrosToStorage(newMacros);
+    await storage.saveMacro(updated);
   },
 
   getMacro: (id) => {
